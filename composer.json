@@ -1,0 +1,29 @@
+{
+  "name": "splotches/php-composter-phpmd",
+  "description": "Automatically install a git pre-commit hook to check your PHP files upon each commit to make sure they follow the rules defined in phpmd.xml.",
+  "type": "php-composter-action",
+  "require": {
+    "php-composter/php-composter": "^0.3.3",
+    "eloquent/pathogen": "^0.6.1",
+    "symfony/process": "^4.1",
+    "phpmd/phpmd": "^2.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "PHPComposter\\PHPComposter\\PHPMD\\": "src/"
+    }
+  },
+  "extra": {
+    "php-composter-hooks": {
+      "20.pre-commit": "PHPComposter\\PHPComposter\\PHPMD\\Action::runPhpMd"
+    }
+  },
+  "license": "GPL v3",
+  "authors": [
+    {
+      "name": "Pascal Scheepers",
+      "email": "pascal@splotch.es"
+    }
+  ],
+  "minimum-stability": "stable"
+}
