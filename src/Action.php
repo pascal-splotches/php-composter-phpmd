@@ -45,7 +45,8 @@ class Action extends BaseAction
             $this->write($process->getOutput());
 
             if ($process->isSuccessful()) {
-                $this->success("PHPMD detected no errors, allowing commit to proceed.");
+                $this->success("PHPMD detected no errors, allowing commit to proceed.", false);
+                return;
             }
 
             $this->error("PHPMD detected errors, aborting commit!" , self::EXIT_ERRORS_FOUND);
