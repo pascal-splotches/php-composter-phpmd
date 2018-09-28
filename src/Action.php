@@ -2,6 +2,9 @@
 
 namespace PHPComposter\PHPComposter\PHPMD;
 
+use DOMDocument;
+use DOMElement;
+use DOMNodeList;
 use Eloquent\Pathogen\FileSystem\FileSystemPath;
 use Exception;
 use PHPComposter\PHPComposter\BaseAction;
@@ -38,8 +41,11 @@ class Action extends BaseAction
     {
         try {
             $this->checkPhpMdConfiguration();
+            $arguments = $this->loadPhpMdArguments();
 
-            $process = new Process([$this->getPhpMdPath()]);
+            array_unshift($arguments, $this->getPhpMdPath());
+
+            $process = new Process($arguments);
             $process->run();
 
             $this->write($process->getOutput());
@@ -120,5 +126,292 @@ class Action extends BaseAction
         if (!file_exists($this->getPhpMdConfigurationPath())) {
             throw new RuntimeException(" PHPMD Configuration file missing");
         }
+    }
+
+    /**
+     * Return PHPMD arguments from configuration file
+     *
+     * @return array
+     *
+     * @throws RuntimeException
+     */
+    protected function loadPhpMdArguments()
+    {
+        return $this->parseArgumentsFromConfiguration();
+    }
+
+    /**
+     * Parse arguments from PHPMD configuration file and convert them into command arguments
+     *
+     * @return array
+     *
+     * @throws RuntimeException
+     */
+    protected function parseArgumentsFromConfiguration()
+    {
+        $dom = new DOMDocument();
+        $dom->loadXML(file_get_contents($this->getPhpMdConfigurationPath()));
+
+        $configuration = $dom->getElementsByTagName('configuration');
+
+        if ($configuration->length === 0) {
+            throw new RuntimeException('No configuration section found');
+        }
+
+        if ($configuration->length > 1) {
+            throw new RuntimeException('More than one configuration section found');
+        }
+
+        $configuration = $configuration->item(0);
+
+        $arguments = [];
+
+        array_push($arguments, $this->getSourceArgument($configuration));
+        array_push($arguments, $this->getOutputModeArgument($configuration));
+        array_push($arguments, $this->getPhpMdConfigurationPath());
+
+        $excludes = $this->getExcludeArgument($configuration);
+
+        if ($excludes !== '') {
+            array_push($arguments, $excludes);
+        }
+
+        $minimumPriority = $this->getMinimumPriorityArgument($configuration);
+
+        if ($minimumPriority !== '') {
+            array_push($arguments, $minimumPriority);
+        }
+
+        $reportFile = $this->getReportFileArgument($configuration);
+
+        if ($reportFile !== '') {
+            array_push($arguments, $reportFile);
+        }
+
+        $suffixes = $this->getSuffixesArgument($configuration);
+
+        if ($suffixes !== '') {
+            array_push($arguments, $suffixes);
+        }
+
+        $strict = $this->getStrictArgument($configuration);
+
+        if ($strict !== '') {
+            array_push($arguments, $strict);
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * Generate the source argument
+     *
+     * @param DOMElement $configuration
+     *
+     * @return string
+     *
+     * @throws RuntimeException
+     */
+    protected function getSourceArgument(DOMElement $configuration)
+    {
+        $sources = $configuration->getElementsByTagName('source');
+
+        if ($sources->length === 0) {
+            throw new RuntimeException('No source defined');
+        }
+
+        return implode(',', $this->getPathsFromConfiguration($sources));
+    }
+
+    /**
+     * Generate the exclude argument
+     *
+     * @param DOMElement $configuration
+     *
+     * @return string
+     */
+    protected function getExcludeArgument(DOMElement $configuration)
+    {
+        $excludes = $configuration->getElementsByTagName('exclude');
+
+        if ($excludes->length === 0) {
+            return '';
+        }
+
+        return '--exclude=' . implode(',', $this->getPathsFromConfiguration($excludes));
+    }
+
+    /**
+     * Generate the output mode argument
+     *
+     * @param DOMElement $configuration
+     *
+     * @return string
+     *
+     * @throws RuntimeException
+     */
+    protected function getOutputModeArgument(DOMElement $configuration)
+    {
+        $outputMode = $configuration->getElementsByTagName('output');
+
+        if ($outputMode->length === 0) {
+            throw new RuntimeException('No output defined');
+        }
+
+        if ($outputMode->length > 1) {
+            throw new RuntimeException('More than one output defined');
+        }
+
+        if (!$outputMode->item(0)->hasAttribute('mode')) {
+            throw new RuntimeException('Output does not have a mode defined');
+        }
+
+        return $outputMode->item(0)->getAttribute('mode');
+    }
+
+    /**
+     * Generate the minimumpriority argument
+     *
+     * @param DOMElement $configuration
+     *
+     * @return string
+     *
+     * @throws RuntimeException
+     */
+    protected function getMinimumPriorityArgument(DOMElement $configuration)
+    {
+        $minimumPriority = $configuration->getElementsByTagName('minimum-priority');
+
+        if ($minimumPriority->length > 1) {
+            throw new RuntimeException('More than one minimum priority defined');
+        }
+
+        if ($minimumPriority->length === 0) {
+            return '';
+        }
+
+        if (!$minimumPriority->item(0)->hasAttribute('value')) {
+            throw new RuntimeException('Minimum priority does not have a value defined');
+        }
+
+        return '--minimumpriority=' . $minimumPriority->item(0)->getAttribute('value');
+    }
+
+    /**
+     * Generate the reportfile argument
+     *
+     * @param DOMElement $configuration
+     *
+     * @return string
+     *
+     * @throws RuntimeException
+     */
+    protected function getReportFileArgument(DOMElement $configuration)
+    {
+        $reportFile = $configuration->getElementsByTagName('report');
+
+        if ($reportFile->length > 1) {
+            throw new RuntimeException('More than one report file defined');
+        }
+
+        if ($reportFile->length === 0) {
+            return '';
+        }
+
+        if (!$reportFile->item(0)->hasAttribute('file')) {
+            throw new RuntimeException('Report file does not have a file defined');
+        }
+
+        return '--reportfile=' . $reportFile->item(0)->getAttribute('file');
+    }
+
+    /**
+     * Generate the strict argument
+     *
+     * @param DOMElement $configuration
+     *
+     * @return string
+     */
+    protected function getStrictArgument(DOMElement $configuration)
+    {
+        $strict = $configuration->getElementsByTagName('strict');
+
+        if ($strict->length > 0) {
+            return '--strict';
+        }
+
+        return '';
+    }
+
+    /**
+     * Generate the suffixes argument
+     *
+     * @param DOMElement $configuration
+     *
+     * @return string
+     */
+    protected function getSuffixesArgument(DOMElement $configuration)
+    {
+        $suffixes = $configuration->getElementsByTagName('suffixes');
+
+        if ($suffixes->length === 0) {
+            return '';
+        }
+
+        return '--suffixes=' . implode(',', $this->getSuffixesFromConfiguration($suffixes));
+    }
+
+    /**
+     * Get Suffixes from a suffix listing node
+     *
+     * @param DOMNodeList $suffixesNodes
+     *
+     * @return array
+     */
+    protected function getSuffixesFromConfiguration(DOMNodeList $suffixesNodes)
+    {
+        $suffixes = [];
+        $suffixesNodesLength = $suffixesNodes->length;
+
+        for ($i = 0; $i < $suffixesNodesLength; $i++) {
+            $suffixesNode = $suffixesNodes->item($i);
+            $suffixNodes = $suffixesNode->getElementsByTagName('suffix');
+            $suffixNodesLength = $suffixNodes->length;
+
+            for ($j = 0; $j < $suffixNodesLength; $j++) {
+                $suffixNode = $suffixNodes->item($j);
+
+                array_push($suffixes, $suffixNode->textContent);
+            }
+        }
+
+        return $suffixes;
+    }
+
+    /**
+     * Get Paths from a path listing node
+     *
+     * @param DOMNodeList $sourceNodes
+     *
+     * @return array
+     */
+    protected function getPathsFromConfiguration(DOMNodeList $sourceNodes)
+    {
+        $sourcePaths = [];
+        $sourceNodesLength = $sourceNodes->length;
+
+        for ($i = 0; $i < $sourceNodesLength; $i++) {
+            $sourceNode = $sourceNodes->item($i);
+            $pathNodes = $sourceNode->getElementsByTagName('path');
+            $pathNodesLength = $pathNodes->length;
+
+            for ($j = 0; $j < $pathNodesLength; $j++) {
+                $pathNode = $pathNodes->item($j);
+
+                array_push($sourcePaths, $pathNode->textContent);
+            }
+        }
+
+        return $sourcePaths;
     }
 }

@@ -26,6 +26,42 @@ composer require --dev pascal-splotches/php-composter-phpmd
 
 It automatically works whenever you execute a `git commit`.
 
+## Configuration
+
+You need to add a configuration section to your `phpmd.xml` ruleset with the correct flags and paths:
+
+```xml
+<configuration>
+    <!-- Required -->
+    <source>
+        <path>src</path>
+        <!-- <path></path>... -->
+    </source>
+    
+    <!-- Optional -->
+    <exclude>
+        <path>docs</path>
+        <!-- <path></path>... -->
+    </exclude>
+    
+    <!-- Required -->
+    <output mode="text"/>
+    
+    <!-- Optional -->
+    <minimum-priority value="5"/>
+    <report file="report.txt"/>
+    
+    <!-- Optional -->
+    <suffixes>
+        <suffix>php</suffix>
+        <!-- <suffix></suffix>... -->
+    </suffixes>
+    
+    <!-- Optional -->
+    <strict/>
+</configuration>
+```
+
 ## Built With
 
 - [Composter](https://github.com/php-composter/php-composter)
